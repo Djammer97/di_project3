@@ -74,7 +74,7 @@ def get_increment(date, ti):
     increment_id = json.loads(response.content)['data']['increment_id']
     if not increment_id:
         raise ValueError(f'Increment is empty. Most probably due to error in API call.')
-    
+
     ti.xcom_push(key='increment_id', value=increment_id)
     print(f'increment_id={increment_id}')
 
@@ -91,10 +91,10 @@ def upload_data_to_staging(filename, date, pg_table, pg_schema, ti):
     print(response.content)
 
     df = pd.read_csv(local_filename)
-    df=df.drop('id', axis=1)
-    df=df.drop_duplicates(subset=['uniq_id'])
+    df = df.drop('id', axis=1)
+    df = df.drop_duplicates(subset=['uniq_id'])
 
-    if 'status' in df.columns:
+    if 'status' not in df.columns:
         df['status'] = 'shipped'
 
     postgres_hook = PostgresHook(postgres_conn_id)
@@ -164,6 +164,12 @@ with DAG(
         parameters={"date": {business_dt}}
     )
 
+    create_f_customer_retention = PostgresOperator(
+        task_id='create_f_customer_retention',
+        postgres_conn_id=postgres_conn_id,
+        sql="sql/mart.f_customer_retention.sql"
+    )
+
     (
             generate_report
             >> get_report
@@ -171,4 +177,5 @@ with DAG(
             >> upload_user_order_inc
             >> [update_d_item_table, update_d_city_table, update_d_customer_table]
             >> update_f_sales
+            >> create_f_customer_retention
     )
